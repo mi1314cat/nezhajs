@@ -1,168 +1,135 @@
-<style>
-  body {
-    margin: 0;
-    overflow: hidden;
-    background: #0f0f0f;
-  }
-
-  .pointer {
-    width: 10px;
-    height: 10px;
-    background: radial-gradient(circle, #fff, transparent);
-    border-radius: 50%;
-    position: fixed;
-    pointer-events: none;
-    z-index: 100000;
-    transform: translate(-50%, -50%);
-    animation: pulse 1s infinite;
-  }
-
-  @keyframes pulse {
-    0% {
-      transform: translate(-50%, -50%) scale(1);
-      opacity: 1;
-    }
-    50% {
-      transform: translate(-50%, -50%) scale(1.5);
-      opacity: 0.5;
-    }
-    100% {
-      transform: translate(-50%, -50%) scale(1);
-      opacity: 1;
-    }
-  }
-</style>
-
-<canvas id="clickCanvas"></canvas>
-<span class="pointer" id="mousePointer"></span>
-
-<script>
+/*网页鼠标点击特效 - 烟花波纹*/
 function clickEffect() {
-  const canvas = document.getElementById("clickCanvas");
-  const pointer = document.getElementById("mousePointer");
-  const ctx = canvas.getContext("2d");
-  let width, height;
+  let balls = [];
+  let longPressed = false;
+  let longPress;
   let multiplier = 0;
-  let isLongPress = false;
-  let longPressTimer;
-
-  const colours = [
-    "#F73859", "#14FFEC", "#00E0FF", "#FF99FE", "#FAF15D", "#FF6B6B",
-    "#FFD93D", "#6BCB77", "#4D96FF", "#843b62", "#f67e7d", "#ffb997"
-  ];
-
-  const balls = [];
-
-  function resize() {
-    width = window.innerWidth;
-    height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
+  let width, height;
+  let origin;
+  let normal;
+  let ctx;
+  const colours = ["#F73859", "#14FFEC", "#00E0FF", "#FF99FE", "#FAF15D"];
+  const canvas = document.createElement("canvas");
+  document.body.appendChild(canvas);
+  canvas.setAttribute("style", "width: 100%; height: 100%; top: 0; left: 0; z-index: 99999; position: fixed; pointer-events: none;");
+  const pointer = document.createElement("span");
+  pointer.classList.add("pointer");
+  document.body.appendChild(pointer);
+ 
+  if (canvas.getContext && window.addEventListener) {
+    ctx = canvas.getContext("2d");
+    updateSize();
+    window.addEventListener('resize', updateSize, false);
+    loop();
+    window.addEventListener("mousedown", function(e) {
+      pushBalls(randBetween(10, 20), e.clientX, e.clientY);
+      document.body.classList.add("is-pressed");
+      longPress = setTimeout(function(){
+        document.body.classList.add("is-longpress");
+        longPressed = true;
+      }, 500);
+    }, false);
+    window.addEventListener("mouseup", function(e) {
+      clearInterval(longPress);
+      if (longPressed == true) {
+        document.body.classList.remove("is-longpress");
+        pushBalls(randBetween(50 + Math.ceil(multiplier), 100 + Math.ceil(multiplier)), e.clientX, e.clientY);
+        longPressed = false;
+      }
+      document.body.classList.remove("is-pressed");
+    }, false);
+    window.addEventListener("mousemove", function(e) {
+      let x = e.clientX;
+      let y = e.clientY;
+      pointer.style.top = y + "px";
+      pointer.style.left = x + "px";
+    }, false);
+  } else {
+    console.log("canvas or addEventListener is unsupported!");
   }
-
+ 
+ 
+  function updateSize() {
+    canvas.width = window.innerWidth * 2;
+    canvas.height = window.innerHeight * 2;
+    canvas.style.width = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    ctx.scale(2, 2);
+    width = (canvas.width = window.innerWidth);
+    height = (canvas.height = window.innerHeight);
+    origin = {
+      x: width / 2,
+      y: height / 2
+    };
+    normal = {
+      x: width / 2,
+      y: height / 2
+    };
+  }
   class Ball {
-    constructor(x, y) {
+    constructor(x = origin.x, y = origin.y) {
       this.x = x;
       this.y = y;
-      this.r = Math.random() * 8 + 4;
-      this.alpha = 1;
-      this.angle = Math.random() * Math.PI * 2;
-      this.speed = (isLongPress ? 6 : 3) + Math.random() * (isLongPress ? 12 : 6);
-      this.vx = Math.cos(this.angle) * this.speed;
-      this.vy = Math.sin(this.angle) * this.speed;
-      const color1 = colours[Math.floor(Math.random() * colours.length)];
-      const color2 = colours[Math.floor(Math.random() * colours.length)];
-      this.gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.r);
-      this.gradient.addColorStop(0, color1);
-      this.gradient.addColorStop(1, color2);
-      this.trail = [];
-    }
-
-    update() {
-      this.trail.push({ x: this.x, y: this.y, r: this.r });
-      if (this.trail.length > 5) this.trail.shift();
-
-      this.x += this.vx;
-      this.y += this.vy;
-      this.vx *= 0.95;
-      this.vy *= 0.95;
-      this.r *= 0.96;
-      this.alpha -= 0.02;
-    }
-
-    draw(ctx) {
-      for (let i = 0; i < this.trail.length; i++) {
-        const t = this.trail[i];
-        ctx.beginPath();
-        ctx.arc(t.x, t.y, t.r, 0, Math.PI * 2);
-        ctx.fillStyle = this.gradient;
-        ctx.globalAlpha = this.alpha * (i / this.trail.length);
-        ctx.shadowColor = "#fff";
-        ctx.shadowBlur = 10;
-        ctx.fill();
-        ctx.closePath();
+      this.angle = Math.PI * 2 * Math.random();
+      if (longPressed == true) {
+        this.multiplier = randBetween(14 + multiplier, 15 + multiplier);
+      } else {
+        this.multiplier = randBetween(6, 12);
       }
-      ctx.globalAlpha = 1;
-      ctx.shadowBlur = 0;
+      this.vx = (this.multiplier + Math.random() * 0.5) * Math.cos(this.angle);
+      this.vy = (this.multiplier + Math.random() * 0.5) * Math.sin(this.angle);
+      this.r = randBetween(8, 12) + 3 * Math.random();
+      this.color = colours[Math.floor(Math.random() * colours.length)];
     }
-
-    isAlive() {
-      return this.alpha > 0 && this.r > 0.5;
+    update() {
+      this.x += this.vx - normal.x;
+      this.y += this.vy - normal.y;
+      normal.x = -2 / window.innerWidth * Math.sin(this.angle);
+      normal.y = -2 / window.innerHeight * Math.cos(this.angle);
+      this.r -= 0.3;
+      this.vx *= 0.9;
+      this.vy *= 0.9;
     }
   }
-
-  function pushBalls(x, y, count) {
+ 
+  function pushBalls(count = 1, x = origin.x, y = origin.y) {
     for (let i = 0; i < count; i++) {
       balls.push(new Ball(x, y));
     }
   }
-
-  function animate() {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
-    ctx.fillRect(0, 0, width, height);
-
-    for (let i = balls.length - 1; i >= 0; i--) {
-      const ball = balls[i];
-      ball.update();
-      ball.draw(ctx);
-      if (!ball.isAlive()) balls.splice(i, 1);
-    }
-
-    if (isLongPress) {
-      multiplier += 0.3;
-    } else {
-      multiplier *= 0.9;
-    }
-
-    requestAnimationFrame(animate);
+ 
+  function randBetween(min, max) {
+    return Math.floor(Math.random() * max) + min;
   }
-
-  // Events
-  canvas.addEventListener("mousedown", e => {
-    isLongPress = false;
-    pushBalls(e.clientX, e.clientY, 20);
-    longPressTimer = setTimeout(() => {
-      isLongPress = true;
-    }, 500);
-  });
-
-  canvas.addEventListener("mouseup", e => {
-    clearTimeout(longPressTimer);
-    if (isLongPress) {
-      pushBalls(e.clientX, e.clientY, 50 + Math.floor(multiplier));
+ 
+  function loop() {
+    ctx.fillStyle = "rgba(255, 255, 255, 0)";
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < balls.length; i++) {
+      let b = balls[i];
+      if (b.r < 0) continue;
+      ctx.fillStyle = b.color;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2, false);
+      ctx.fill();
+      b.update();
     }
-    isLongPress = false;
-  });
-
-  canvas.addEventListener("mousemove", e => {
-    pointer.style.left = e.clientX + "px";
-    pointer.style.top = e.clientY + "px";
-  });
-
-  window.addEventListener("resize", resize);
-
-  resize();
-  animate();
+    if (longPressed == true) {
+      multiplier += 0.2;
+    } else if (!longPressed && multiplier >= 0) {
+      multiplier -= 0.4;
+    }
+    removeBall();
+    requestAnimationFrame(loop);
+  }
+ 
+  function removeBall() {
+    for (let i = 0; i < balls.length; i++) {
+      let b = balls[i];
+      if (b.x + b.r < 0 || b.x - b.r > width || b.y + b.r < 0 || b.y - b.r > height || b.r < 0) {
+        balls.splice(i, 1);
+      }
+    }
+  }
 }
-clickEffect();
-</script>
+clickEffect();//调用特效函数
